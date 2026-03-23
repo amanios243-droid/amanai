@@ -97,18 +97,18 @@ const STYLES = [
   { label:"Minimalist", value:"minimalist, clean, simple, modern design", emoji:"◻️" },
 ];
 const SIZES = [
-  { label:"Square 1:1", width:1024, height:1024, icon:"⬛" },
-  { label:"Portrait 2:3", width:832, height:1216, icon:"📱" },
-  { label:"Landscape 3:2", width:1216, height:832, icon:"🖥️" },
-  { label:"Wide 16:9", width:1344, height:768, icon:"📺" },
-  { label:"Ultra Wide", width:1536, height:640, icon:"🎞️" },
+  { label:"Fast 512px", width:512, height:512, icon:"⚡" },
+  { label:"Portrait 2:3", width:512, height:768, icon:"📱" },
+  { label:"Landscape 3:2", width:768, height:512, icon:"🖥️" },
+  { label:"Wide 16:9", width:768, height:432, icon:"📺" },
+  { label:"HD 1:1", width:1024, height:1024, icon:"🌟" },
 ];
 
 // ═══════════════════════════════════════════════════════════
 // GROQ API KEY — Free, fast, reliable
 // Get yours free at: console.groq.com
 // ═══════════════════════════════════════════════════════════
-const GROQ_API_KEY = "gsk_APNI_KEY_YAHAN_DAALO";
+const GROQ_API_KEY = "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";
 
 async function chatAPI(messages, langCode) {
   const system = LANG_SYSTEM[langCode] || LANG_SYSTEM["hinglish"];
@@ -243,13 +243,11 @@ export default function App() {
   const [tab, setTab] = useState("image");
   const [lang, setLang] = useState("hinglish");
   const [showLangMenu, setShowLangMenu] = useState(false);
-  const [groqKey, setGroqKey] = useState(localStorage.getItem("amanai_groq_key") || "");
-  const [showKeyInput, setShowKeyInput] = useState(false);
 
   const [imgPrompt, setImgPrompt] = useState("");
-  const [imgModel, setImgModel] = useState("flux");
+  const [imgModel, setImgModel] = useState("turbo");
   const [imgStyle, setImgStyle] = useState("");
-  const [imgSize, setImgSize] = useState(SIZES[0]);
+  const [imgSize, setImgSize] = useState(SIZES[0]); // Square 1:1 = 1024x1024
   const [imgCount, setImgCount] = useState(1);
   const [useEnhancer, setUseEnhancer] = useState(true);
   const [images, setImages] = useState([]);
@@ -266,14 +264,6 @@ export default function App() {
   const bottomRef = useRef(null);
   const langMenuRef = useRef(null);
 
-  // Update GROQ key in module scope when changed
-  useEffect(() => {
-    if (groqKey) {
-      localStorage.setItem("amanai_groq_key", groqKey);
-      // Override the constant
-      window.__AMANAI_GROQ_KEY__ = groqKey;
-    }
-  }, [groqKey]);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior:"smooth" });
@@ -310,13 +300,28 @@ export default function App() {
         const seed = Math.floor(Math.random() * 9999999);
         const url = `https://image.pollinations.ai/prompt/${encodeURIComponent(fullPrompt)}?model=${imgModel}&width=${imgSize.width}&height=${imgSize.height}&seed=${seed}&nologo=true&nofeed=true`;
 
-        await new Promise((resolve, reject) => {
-          const tester = new window.Image();
-          const timeout = setTimeout(() => reject(new Error("Timeout — dobara try karo")), 90000);
-          tester.onload = () => { clearTimeout(timeout); resolve(); };
-          tester.onerror = () => { clearTimeout(timeout); reject(new Error("Server busy. 30 sec baad try karo.")); };
-          tester.src = url;
-        });
+        // Auto retry up to 3 times
+        let loaded = false;
+        for (let attempt = 1; attempt <= 3; attempt++) {
+          const retrySeed = Math.floor(Math.random() * 9999999);
+          const retryUrl = attempt === 1 ? url : url.replace(/seed=\d+/, `seed=${retrySeed}`);
+          try {
+            await new Promise((resolve, reject) => {
+              const tester = new window.Image();
+              const timeout = setTimeout(() => reject(new Error("timeout")), 45000);
+              tester.onload = () => { clearTimeout(timeout); resolve(); };
+              tester.onerror = () => { clearTimeout(timeout); reject(new Error("error")); };
+              tester.src = retryUrl;
+            });
+            // Success — update URL if retried
+            if (attempt > 1) url = retryUrl;
+            loaded = true;
+            break;
+          } catch(_) {
+            if (attempt === 3) throw new Error("3 baar try kiya — server busy hai. Thodi der baad try karo.");
+            await new Promise(r => setTimeout(r, 2000)); // wait 2s before retry
+          }
+        }
 
         setImages(prev => prev.map(x =>
           x.id === newImgs[i].id ? { ...x, loading:false, url, prompt:cleanPrompt, enhancedPrompt:finalPrompt } : x
@@ -343,19 +348,18 @@ export default function App() {
     if (!rateLimit("chat",20,60000)) {
       return setMessages(prev => [...prev, { role:"assistant", content:"⚠️ Thoda ruko! 1 minute baad try karo. 🙏" }]);
     }
-    const activeKey = groqKey || window.__AMANAI_GROQ_KEY__;
     const userMsg = { role:"user", content:text };
     const newMsgs = [...messages, userMsg];
     setMessages(newMsgs); setChatInput(""); setChatLoading(true);
     try {
       // Pass groq key to chatAPI
-      const reply = await chatAPIWithKey(newMsgs, lang, activeKey);
+      const reply = await chatAPIWithKey(newMsgs, lang, GROQ_API_KEY);
       setMessages(prev => [...prev, { role:"assistant", content:sanitize(reply) }]);
     } catch(err) {
       setMessages(prev => [...prev, { role:"assistant", content:`⚠️ ${err.message}` }]);
     }
     setChatLoading(false);
-  }, [chatInput, chatLoading, messages, lang, groqKey]);
+  }, [chatInput, chatLoading, messages, lang]);
 
   const handleKey = (e) => {
     if (e.key==="Enter" && !e.shiftKey) { e.preventDefault(); sendChat(); }
@@ -526,35 +530,7 @@ export default function App() {
             <button className="change-lang-btn" onClick={() => setShowLangMenu(true)}>Change ▼</button>
           </div>
 
-          {/* Groq Key Setup */}
-          <div className="groq-banner">
-            <div className="groq-left">
-              <span>⚡</span>
-              <div>
-                <strong>Free Groq API Key lagao</strong>
-                <span className="groq-sub"> — Fast & Guaranteed chat ke liye</span>
-              </div>
-            </div>
-            <button className="groq-toggle-btn" onClick={() => setShowKeyInput(v=>!v)}>
-              {groqKey ? "✅ Set" : "Setup →"}
-            </button>
-          </div>
-          {showKeyInput && (
-            <div className="groq-setup">
-              <p>1. <a href="https://console.groq.com" target="_blank" rel="noreferrer">console.groq.com</a> pe <strong>free account</strong> banao</p>
-              <p>2. "API Keys" → "Create API Key" → Copy karo</p>
-              <div className="groq-input-row">
-                <input
-                  type="password"
-                  className="groq-input"
-                  placeholder="gsk_xxxxxxxxxxxxxxxxxx"
-                  value={groqKey}
-                  onChange={e => setGroqKey(e.target.value)}
-                />
-                <button className="groq-save-btn" onClick={() => setShowKeyInput(false)}>Save ✓</button>
-              </div>
-            </div>
-          )}
+
 
           <div className="chat-messages" role="log" aria-live="polite">
             {messages.map((m,i) => (
@@ -595,7 +571,7 @@ export default function App() {
       <footer className="footer">
         <div className="footer-inner">
           <span>🌸 AmanAI</span><span>·</span>
-          <span>Powered by Pollinations + Groq</span><span>·</span>
+          <span>Powered by Groq AI + Pollinations</span><span>·</span>
           <span>22 Indian Languages</span><span>·</span>
           <span>🔒 Secure</span>
         </div>
