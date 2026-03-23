@@ -1,9 +1,6 @@
 import { useState, useRef, useEffect, useCallback, memo } from "react";
 import "./App.css";
 
-// ═══════════════════════════════════════════════════════════
-// SECURITY
-// ═══════════════════════════════════════════════════════════
 const sanitize = (str) => {
   if (typeof str !== "string") return "";
   return str.replace(/[<>]/g,"").replace(/javascript:/gi,"").replace(/on\w+=/gi,"").trim().slice(0,2000);
@@ -19,45 +16,37 @@ const rateLimit = (() => {
   };
 })();
 
-// ═══════════════════════════════════════════════════════════
-// API KEYS — ROTATION SYSTEM
-// ═══════════════════════════════════════════════════════════
-const GROQ_KEYS = [
-  import.meta.env.VITE_GROQ1,
-  import.meta.env.VITE_GROQ2,
-  import.meta.env.VITE_GROQ3,
-].filter(Boolean);
-
+// ── API KEYS ──
 const GEMINI_KEYS = [
-  import.meta.env.VITE_GEMINI1,
-  import.meta.env.VITE_GEMINI2,
-  import.meta.env.VITE_GEMINI3,
-].filter(Boolean);
-
-const OPENROUTER_KEYS = [
-  import.meta.env.VITE_OR1,
-  import.meta.env.VITE_OR2,
-].filter(Boolean);
-
+  "AIzaSyCqpA55Py4WCR5fjXLUxNx1dsHeuyUY-Ys",
+  "AIzaSyDs4uN2dzg0qAaWw-xuhkUClGGzo6H6GlE",
+  "AIzaSyBi8qVLnAp3WsBnrSq32eYtrmb2ZXpniic",
+];
+const GROQ_KEYS = [
+  "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",
+  "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",
+  "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",
+];
+const OR_KEYS = [
+  "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",
+  "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",
+];
 const HF_KEYS = [
-  import.meta.env.VITE_HF1,
-  import.meta.env.VITE_HF2,
-  import.meta.env.VITE_HF3,
-].filter(Boolean);
+  "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",
+  "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",
+  "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",
+];
 
-// Round-robin key rotation
-const keyIndex = {};
+const ki = {};
 const getKey = (keys, name) => {
   if (!keys.length) return null;
-  if (!keyIndex[name]) keyIndex[name] = 0;
-  const key = keys[keyIndex[name] % keys.length];
-  keyIndex[name]++;
-  return key;
+  if (ki[name] === undefined) ki[name] = 0;
+  const k = keys[ki[name] % keys.length];
+  ki[name]++;
+  return k;
 };
 
-// ═══════════════════════════════════════════════════════════
-// LANGUAGES
-// ═══════════════════════════════════════════════════════════
+// ── LANGUAGES ──
 const LANGUAGES = [
   { code:"hi", name:"हिंदी", label:"Hindi" },
   { code:"en", name:"English", label:"English" },
@@ -84,15 +73,15 @@ const LANGUAGES = [
 ];
 
 const LANG_SYSTEM = {
-  hi:"तुम AmanAI हो — एक बेहतरीन, दोस्ताना और मददगार AI। हमेशा हिंदी में जवाब दो। छोटे और साफ जवाब दो।",
-  en:"You are AmanAI — a smart, friendly and helpful AI. Always respond in English. Be concise.",
+  hi:"तुम AmanAI हो — एक बेहतरीन, दोस्ताना और मददगार AI। हमेशा हिंदी में जवाब दो।",
+  en:"You are AmanAI — a smart, friendly AI. Always respond in English. Be concise.",
   hinglish:"Tu AmanAI hai — ek smart aur helpful AI. Hamesha Hinglish mein baat kar. Short jawab de.",
   bn:"তুমি AmanAI — স্মার্ট AI। সবসময় বাংলায় উত্তর দাও।",
   te:"మీరు AmanAI — తెలివైన AI. తెలుగులో సమాధానం ఇవ్వండి.",
   mr:"तू AmanAI — हुशार AI. मराठीत उत्तर दे.",
   ta:"நீங்கள் AmanAI — புத்திசாலி AI. தமிழில் பதில் சொல்லுங்கள்.",
   gu:"તમે AmanAI — સ્માર્ટ AI. ગુજરાતીમાં જવાબ આપો.",
-  kn:"ನೀವು AmanAI — ಬುದ್ಧಿವಂತ AI. ಕನ್ನಡದಲ್ಲಿ ಉತ್ತರಿಸಿ.",
+  kn:"ನೀವు AmanAI — ಬುದ್ಧಿವಂತ AI. ಕನ್ನಡದಲ್ಲಿ ಉತ್ತರಿಸಿ.",
   ml:"നിങ്ങൾ AmanAI — സ്മാർട്ട് AI. മലയാളത്തിൽ ഉത്തരം നൽകൂ.",
   pa:"ਤੁਸੀਂ AmanAI — ਸਮਝਦਾਰ AI. ਪੰਜਾਬੀ ਵਿੱਚ ਜਵਾਬ ਦਿਓ।",
   or:"ତୁମେ AmanAI — ସ୍ମାର୍ଟ AI। ଓଡ଼ିଆରେ ଉତ୍ତର ଦିଅ।",
@@ -108,9 +97,7 @@ const LANG_SYSTEM = {
   kok:"तुम AmanAI — हुशार AI। कोंकणींत जाप दी.",
 };
 
-// ═══════════════════════════════════════════════════════════
-// IMAGE CONFIG
-// ═══════════════════════════════════════════════════════════
+// ── IMAGE CONFIG ──
 const IMG_MODELS = [
   { id:"flux", name:"FLUX", tag:"Best" },
   { id:"flux-realism", name:"Realism", tag:"Ultra HD" },
@@ -125,45 +112,43 @@ const STYLES = [
   { label:"Anime", value:"anime style, vibrant colors, manga art", emoji:"🎌" },
   { label:"Oil Painting", value:"oil painting, textured canvas, masterpiece", emoji:"🖼️" },
   { label:"Watercolor", value:"watercolor painting, soft edges, artistic", emoji:"🎨" },
-  { label:"Cyberpunk", value:"cyberpunk, neon lights, futuristic, blade runner", emoji:"🌆" },
+  { label:"Cyberpunk", value:"cyberpunk, neon lights, futuristic city", emoji:"🌆" },
   { label:"Fantasy", value:"fantasy art, magical, ethereal glow, epic", emoji:"🧙" },
   { label:"Sketch", value:"pencil sketch, hand drawn, detailed linework", emoji:"✏️" },
-  { label:"Digital Art", value:"digital art, concept art, artstation, detailed", emoji:"💻" },
-  { label:"Vintage", value:"vintage photography, retro, film noir, nostalgic", emoji:"📸" },
+  { label:"Digital Art", value:"digital art, concept art, highly detailed", emoji:"💻" },
+  { label:"Vintage", value:"vintage photography, retro, film noir", emoji:"📸" },
   { label:"Minimalist", value:"minimalist, clean, simple, modern design", emoji:"◻️" },
 ];
 const SIZES = [
   { label:"Fast 512px", width:512, height:512, icon:"⚡" },
-  { label:"Portrait 2:3", width:512, height:768, icon:"📱" },
-  { label:"Landscape 3:2", width:768, height:512, icon:"🖥️" },
+  { label:"Portrait", width:512, height:768, icon:"📱" },
+  { label:"Landscape", width:768, height:512, icon:"🖥️" },
   { label:"Wide 16:9", width:768, height:432, icon:"📺" },
   { label:"HD 1024px", width:1024, height:1024, icon:"🌟" },
 ];
 
-// ═══════════════════════════════════════════════════════════
-// CHAT API — Gemini → Groq → OpenRouter → Pollinations
-// ═══════════════════════════════════════════════════════════
+// ── CHAT API ──
 async function chatAPI(messages, langCode) {
   const system = LANG_SYSTEM[langCode] || LANG_SYSTEM["hinglish"];
-  const lastMsg = messages[messages.length-1]?.content || "";
+  const msgs = messages.slice(-20).map(m => ({ role:m.role, content:m.content }));
 
-  // ── 1. Gemini (fastest, smartest) ──
-  const geminiKey = getKey(GEMINI_KEYS, "gemini");
-  if (geminiKey) {
+  // 1. Gemini Flash (fastest)
+  for (let attempt = 0; attempt < GEMINI_KEYS.length; attempt++) {
+    const key = getKey(GEMINI_KEYS, "gemini");
     try {
-      const geminiMsgs = messages.slice(-20).map(m => ({
+      const geminiMsgs = msgs.map(m => ({
         role: m.role === "assistant" ? "model" : "user",
         parts: [{ text: m.content }]
       }));
       const res = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${geminiKey}`,
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${key}`,
         {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
+          method:"POST",
+          headers:{"Content-Type":"application/json"},
           body: JSON.stringify({
-            systemInstruction: { parts: [{ text: system + " Apna naam AmanAI hai." }] },
+            systemInstruction:{ parts:[{ text: system + " Apna naam AmanAI hai. Helpful aur concise raho." }]},
             contents: geminiMsgs,
-            generationConfig: { maxOutputTokens: 1024, temperature: 0.7 },
+            generationConfig:{ maxOutputTokens:1024, temperature:0.7 },
           }),
         }
       );
@@ -175,20 +160,20 @@ async function chatAPI(messages, langCode) {
     } catch(_) {}
   }
 
-  // ── 2. Groq (very fast) ──
-  const groqKey = getKey(GROQ_KEYS, "groq");
-  if (groqKey) {
+  // 2. Groq (very fast)
+  for (let attempt = 0; attempt < GROQ_KEYS.length; attempt++) {
+    const key = getKey(GROQ_KEYS, "groq");
     try {
       const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-        method: "POST",
-        headers: { "Content-Type":"application/json", "Authorization":`Bearer ${groqKey}` },
+        method:"POST",
+        headers:{"Content-Type":"application/json","Authorization":`Bearer ${key}`},
         body: JSON.stringify({
-          model: "llama3-8b-8192",
-          messages: [
+          model:"llama3-8b-8192",
+          messages:[
             { role:"system", content: system + " Apna naam AmanAI hai." },
-            ...messages.slice(-20).map(m => ({ role:m.role, content:m.content }))
+            ...msgs
           ],
-          max_tokens: 1024, temperature: 0.7,
+          max_tokens:1024, temperature:0.7,
         }),
       });
       if (res.ok) {
@@ -199,20 +184,17 @@ async function chatAPI(messages, langCode) {
     } catch(_) {}
   }
 
-  // ── 3. OpenRouter (100+ free models) ──
-  const orKey = getKey(OPENROUTER_KEYS, "or");
-  if (orKey) {
+  // 3. OpenRouter
+  for (let attempt = 0; attempt < OR_KEYS.length; attempt++) {
+    const key = getKey(OR_KEYS, "or");
     try {
       const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-        method: "POST",
-        headers: { "Content-Type":"application/json", "Authorization":`Bearer ${orKey}` },
+        method:"POST",
+        headers:{"Content-Type":"application/json","Authorization":`Bearer ${key}`},
         body: JSON.stringify({
-          model: "meta-llama/llama-3.1-8b-instruct:free",
-          messages: [
-            { role:"system", content: system },
-            ...messages.slice(-20).map(m => ({ role:m.role, content:m.content }))
-          ],
-          max_tokens: 1024,
+          model:"meta-llama/llama-3.1-8b-instruct:free",
+          messages:[{ role:"system", content:system }, ...msgs],
+          max_tokens:1024,
         }),
       });
       if (res.ok) {
@@ -223,10 +205,11 @@ async function chatAPI(messages, langCode) {
     } catch(_) {}
   }
 
-  // ── 4. Pollinations (no key, last resort) ──
+  // 4. Pollinations fallback
   try {
+    const lastMsg = msgs[msgs.length-1]?.content || "";
     const res = await fetch(
-      `https://text.pollinations.ai/${encodeURIComponent(lastMsg.slice(0,500))}?model=openai&system=${encodeURIComponent(system.slice(0,200))}&seed=${Math.floor(Math.random()*9999)}`,
+      `https://text.pollinations.ai/${encodeURIComponent(lastMsg.slice(0,400))}?model=openai&system=${encodeURIComponent(system.slice(0,150))}&seed=${Math.floor(Math.random()*9999)}`,
       { method:"GET" }
     );
     if (res.ok) {
@@ -235,69 +218,26 @@ async function chatAPI(messages, langCode) {
     }
   } catch(_) {}
 
-  return "Abhi thodi der ke liye service busy hai. Kuch seconds baad dobara try karo! 🙏";
+  return "Thodi der ke liye busy hoon. Dobara try karo! 🙏";
 }
 
-// ═══════════════════════════════════════════════════════════
-// IMAGE GENERATION — Pollinations + HF fallback
-// ═══════════════════════════════════════════════════════════
-async function generateImageURL(prompt, model, size, style) {
-  const styleStr = style ? `, ${style}` : "";
-  const fullPrompt = `${prompt}${styleStr}, masterpiece, best quality, highly detailed`;
-  const seed = Math.floor(Math.random() * 9999999);
-
-  // Primary: Pollinations
-  const polUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(fullPrompt)}?model=${model}&width=${size.width}&height=${size.height}&seed=${seed}&nologo=true&nofeed=true`;
-
-  // Try Pollinations first
-  try {
-    await new Promise((resolve, reject) => {
-      const img = new window.Image();
-      const t = setTimeout(() => reject(new Error("timeout")), 40000);
-      img.onload = () => { clearTimeout(t); resolve(); };
-      img.onerror = () => { clearTimeout(t); reject(); };
-      img.src = polUrl;
-    });
-    return polUrl;
-  } catch(_) {}
-
-  // Fallback: Hugging Face SDXL
-  const hfKey = getKey(HF_KEYS, "hf");
-  if (hfKey) {
-    try {
-      const res = await fetch(
-        "https://api-inference.huggingface.co/models/stabilityai/stable-diffusion-xl-base-1.0",
-        {
-          method: "POST",
-          headers: { "Authorization": `Bearer ${hfKey}`, "Content-Type": "application/json" },
-          body: JSON.stringify({ inputs: fullPrompt, parameters: { width: size.width, height: size.height } }),
-        }
-      );
-      if (res.ok) {
-        const blob = await res.blob();
-        return URL.createObjectURL(blob);
-      }
-    } catch(_) {}
-  }
-
-  throw new Error("Image generate nahi hui. Dobara try karo!");
-}
-
-// ═══════════════════════════════════════════════════════════
-// PROMPT ENHANCER
-// ═══════════════════════════════════════════════════════════
+// ── PROMPT ENHANCER ──
 async function enhancePrompt(rawPrompt, style) {
-  const geminiKey = getKey(GEMINI_KEYS, "gemini_enhance");
-  if (geminiKey) {
+  const styleHint = style ? `Style: ${style}.` : "";
+  const enhanceText = `Convert to detailed image generation prompt in English. ${styleHint} Add lighting, mood, composition. Max 120 words. Return ONLY the prompt: ${rawPrompt}`;
+
+  // Try Gemini first
+  const gKey = getKey(GEMINI_KEYS, "g_enhance");
+  if (gKey) {
     try {
       const res = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${geminiKey}`,
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${gKey}`,
         {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
+          method:"POST",
+          headers:{"Content-Type":"application/json"},
           body: JSON.stringify({
-            contents: [{ parts: [{ text: `Convert this to a detailed image generation prompt in English. ${style ? "Style: "+style+"." : ""} Add lighting, atmosphere, composition. Max 120 words. Return ONLY the prompt: ${rawPrompt}` }] }],
-            generationConfig: { maxOutputTokens: 200 },
+            contents:[{ parts:[{ text: enhanceText }] }],
+            generationConfig:{ maxOutputTokens:200 },
           }),
         }
       );
@@ -309,20 +249,20 @@ async function enhancePrompt(rawPrompt, style) {
     } catch(_) {}
   }
 
-  // Groq fallback for enhancement
-  const groqKey = getKey(GROQ_KEYS, "groq_enhance");
-  if (groqKey) {
+  // Groq fallback
+  const gqKey = getKey(GROQ_KEYS, "gq_enhance");
+  if (gqKey) {
     try {
       const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-        method: "POST",
-        headers: { "Content-Type":"application/json", "Authorization":`Bearer ${groqKey}` },
+        method:"POST",
+        headers:{"Content-Type":"application/json","Authorization":`Bearer ${gqKey}`},
         body: JSON.stringify({
-          model: "llama3-8b-8192",
-          messages: [
-            { role:"system", content:"You are an image prompt expert. Convert descriptions to detailed prompts. Return ONLY the prompt in English, max 120 words." },
-            { role:"user", content: `Enhance: ${rawPrompt}. ${style ? "Style: "+style : ""}` }
+          model:"llama3-8b-8192",
+          messages:[
+            { role:"system", content:"You are an image prompt expert. Return ONLY the enhanced prompt in English, max 120 words." },
+            { role:"user", content: enhanceText }
           ],
-          max_tokens: 200,
+          max_tokens:200,
         }),
       });
       if (res.ok) {
@@ -336,9 +276,53 @@ async function enhancePrompt(rawPrompt, style) {
   return rawPrompt;
 }
 
-// ═══════════════════════════════════════════════════════════
-// COMPONENTS
-// ═══════════════════════════════════════════════════════════
+// ── IMAGE GENERATION ──
+async function generateImageURL(prompt, model, size, style) {
+  const styleStr = style ? `, ${style}` : "";
+  const fullPrompt = `${prompt}${styleStr}, masterpiece, best quality, highly detailed`;
+  const seed = Math.floor(Math.random() * 9999999);
+  const polUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(fullPrompt)}?model=${model}&width=${size.width}&height=${size.height}&seed=${seed}&nologo=true&nofeed=true`;
+
+  // Try Pollinations with 2 attempts
+  for (let i = 0; i < 2; i++) {
+    const tryUrl = i === 0 ? polUrl : polUrl.replace(/seed=\d+/, `seed=${Math.floor(Math.random()*9999999)}`);
+    try {
+      await new Promise((resolve, reject) => {
+        const img = new window.Image();
+        const t = setTimeout(() => reject(new Error("timeout")), 45000);
+        img.onload = () => { clearTimeout(t); resolve(); };
+        img.onerror = () => { clearTimeout(t); reject(); };
+        img.src = tryUrl;
+      });
+      return tryUrl;
+    } catch(_) {
+      if (i === 0) await new Promise(r => setTimeout(r, 2000));
+    }
+  }
+
+  // HF fallback
+  const hfKey = getKey(HF_KEYS, "hf");
+  if (hfKey) {
+    try {
+      const res = await fetch(
+        "https://api-inference.huggingface.co/models/stabilityai/stable-diffusion-xl-base-1.0",
+        {
+          method:"POST",
+          headers:{"Authorization":`Bearer ${hfKey}`,"Content-Type":"application/json"},
+          body: JSON.stringify({ inputs: fullPrompt, parameters:{ width:size.width, height:size.height }}),
+        }
+      );
+      if (res.ok) {
+        const blob = await res.blob();
+        return URL.createObjectURL(blob);
+      }
+    } catch(_) {}
+  }
+
+  throw new Error("Image nahi ban payi. Dobara try karo!");
+}
+
+// ── COMPONENTS ──
 const TypingDots = memo(() => (
   <div className="typing-dots"><span/><span/><span/></div>
 ));
@@ -378,14 +362,11 @@ const ImageCard = memo(({ img, index, onDownload }) => {
   );
 });
 
-// ═══════════════════════════════════════════════════════════
-// MAIN APP
-// ═══════════════════════════════════════════════════════════
+// ── MAIN APP ──
 export default function App() {
   const [tab, setTab] = useState("image");
   const [lang, setLang] = useState("hinglish");
   const [showLangMenu, setShowLangMenu] = useState(false);
-
   const [imgPrompt, setImgPrompt] = useState("");
   const [imgModel, setImgModel] = useState("turbo");
   const [imgStyle, setImgStyle] = useState("");
@@ -397,7 +378,6 @@ export default function App() {
   const [imgError, setImgError] = useState("");
   const [genIndex, setGenIndex] = useState(null);
   const [enhancing, setEnhancing] = useState(false);
-
   const [messages, setMessages] = useState([
     { role:"assistant", content:"Salam! Main AmanAI hoon 🌸 Tumhara personal AI — image bhi banata hoon, baat bhi karta hoon! Kuch bhi pucho, kisi bhi Indian language mein! 😊" }
   ]);
@@ -411,43 +391,29 @@ export default function App() {
   }, [messages, chatLoading]);
 
   useEffect(() => {
-    const handler = (e) => {
-      if (langMenuRef.current && !langMenuRef.current.contains(e.target)) setShowLangMenu(false);
-    };
-    document.addEventListener("mousedown", handler);
-    return () => document.removeEventListener("mousedown", handler);
+    const h = (e) => { if (langMenuRef.current && !langMenuRef.current.contains(e.target)) setShowLangMenu(false); };
+    document.addEventListener("mousedown", h);
+    return () => document.removeEventListener("mousedown", h);
   }, []);
 
   const generateImage = useCallback(async () => {
     const cleanPrompt = sanitize(imgPrompt);
     if (!cleanPrompt) return setImgError("Prompt likho pehle!");
     if (!rateLimit("img",10,60000)) return setImgError("Thoda ruko! 60 sec baad try karo.");
-
     setImgLoading(true); setImgError("");
-    const newImgs = Array(imgCount).fill(null).map((_,i) => ({
-      id:Date.now()+i, loading:true, url:null, prompt:cleanPrompt
-    }));
+    const newImgs = Array(imgCount).fill(null).map((_,i) => ({ id:Date.now()+i, loading:true, url:null, prompt:cleanPrompt }));
     setImages(prev => [...newImgs, ...prev]);
-
     for (let i = 0; i < imgCount; i++) {
       setGenIndex(i+1);
       try {
         let finalPrompt = cleanPrompt;
-        if (useEnhancer) {
-          setEnhancing(true);
-          finalPrompt = sanitize(await enhancePrompt(cleanPrompt, imgStyle));
-          setEnhancing(false);
-        }
+        if (useEnhancer) { setEnhancing(true); finalPrompt = sanitize(await enhancePrompt(cleanPrompt, imgStyle)); setEnhancing(false); }
         const url = await generateImageURL(finalPrompt, imgModel, imgSize, imgStyle);
-        setImages(prev => prev.map(x =>
-          x.id === newImgs[i].id ? { ...x, loading:false, url, prompt:cleanPrompt, enhancedPrompt:finalPrompt } : x
-        ));
+        setImages(prev => prev.map(x => x.id===newImgs[i].id ? {...x, loading:false, url, prompt:cleanPrompt, enhancedPrompt:finalPrompt} : x));
       } catch(err) {
         setEnhancing(false);
-        setImages(prev => prev.map(x =>
-          x.id === newImgs[i].id ? { ...x, loading:false, error:err.message } : x
-        ));
-        setImgError(`Image ${i+1} fail: ${err.message}`);
+        setImages(prev => prev.map(x => x.id===newImgs[i].id ? {...x, loading:false, error:err.message} : x));
+        setImgError(`Image ${i+1}: ${err.message}`);
       }
     }
     setImgLoading(false); setGenIndex(null); setEnhancing(false);
@@ -455,34 +421,27 @@ export default function App() {
 
   const downloadImg = useCallback((img, i) => {
     const a = document.createElement("a");
-    a.href = img.url; a.target = "_blank";
-    a.download = `AmanAI-${i+1}-${Date.now()}.png`;
+    a.href=img.url; a.target="_blank"; a.download=`AmanAI-${i+1}-${Date.now()}.png`;
     document.body.appendChild(a); a.click(); document.body.removeChild(a);
   }, []);
 
   const sendChat = useCallback(async () => {
     const text = sanitize(chatInput);
     if (!text || chatLoading) return;
-    if (!rateLimit("chat",20,60000)) {
-      return setMessages(prev => [...prev, { role:"assistant", content:"Thoda ruko! 1 minute baad try karo. 🙏" }]);
-    }
-    const userMsg = { role:"user", content:text };
-    const newMsgs = [...messages, userMsg];
+    if (!rateLimit("chat",20,60000)) return setMessages(prev => [...prev, { role:"assistant", content:"Thoda ruko! 1 minute baad try karo. 🙏" }]);
+    const newMsgs = [...messages, { role:"user", content:text }];
     setMessages(newMsgs); setChatInput(""); setChatLoading(true);
     try {
       const reply = await chatAPI(newMsgs, lang);
       setMessages(prev => [...prev, { role:"assistant", content:sanitize(reply) }]);
-    } catch(err) {
-      setMessages(prev => [...prev, { role:"assistant", content:"Thodi der ke liye service busy hai. Dobara try karo! 🙏" }]);
+    } catch(_) {
+      setMessages(prev => [...prev, { role:"assistant", content:"Thodi der ke liye busy hoon. Dobara try karo! 🙏" }]);
     }
     setChatLoading(false);
   }, [chatInput, chatLoading, messages, lang]);
 
-  const handleKey = (e) => {
-    if (e.key==="Enter" && !e.shiftKey) { e.preventDefault(); sendChat(); }
-  };
-
-  const currentLang = LANGUAGES.find(l => l.code === lang);
+  const handleKey = (e) => { if (e.key==="Enter" && !e.shiftKey) { e.preventDefault(); sendChat(); } };
+  const currentLang = LANGUAGES.find(l => l.code===lang);
 
   return (
     <div className="app">
@@ -490,13 +449,9 @@ export default function App() {
         <div className="blob b1"/><div className="blob b2"/><div className="blob b3"/>
         <div className="grid-overlay"/>
       </div>
-
       <header className="header">
         <div className="brand">
-          <div className="brand-logo">
-            <span className="logo-letter">A</span>
-            <div className="logo-ring"/>
-          </div>
+          <div className="brand-logo"><span className="logo-letter">A</span><div className="logo-ring"/></div>
           <div className="brand-text">
             <h1 className="brand-name">Aman<span>AI</span></h1>
             <p className="brand-tagline">India's Personal AI · Free & Unlimited</p>
@@ -505,19 +460,15 @@ export default function App() {
         <div className="header-right">
           <div className="lang-selector" ref={langMenuRef}>
             <button className="lang-btn" onClick={() => setShowLangMenu(v=>!v)}>
-              <span>🌐</span>
-              <span className="lang-current">{currentLang?.name}</span>
-              <span className="lang-arrow">{showLangMenu?"▲":"▼"}</span>
+              <span>🌐</span><span className="lang-current">{currentLang?.name}</span><span className="lang-arrow">{showLangMenu?"▲":"▼"}</span>
             </button>
             {showLangMenu && (
               <div className="lang-dropdown">
                 <div className="lang-dropdown-title">🇮🇳 22 Indian Languages</div>
                 <div className="lang-grid">
                   {LANGUAGES.map(l => (
-                    <button key={l.code} className={`lang-option ${lang===l.code?"active":""}`}
-                      onClick={() => { setLang(l.code); setShowLangMenu(false); }}>
-                      <span className="lang-native">{l.name}</span>
-                      <span className="lang-label">{l.label}</span>
+                    <button key={l.code} className={`lang-option ${lang===l.code?"active":""}`} onClick={() => { setLang(l.code); setShowLangMenu(false); }}>
+                      <span className="lang-native">{l.name}</span><span className="lang-label">{l.label}</span>
                     </button>
                   ))}
                 </div>
@@ -525,9 +476,7 @@ export default function App() {
             )}
           </div>
           <div className="header-badges">
-            <span className="hbadge">✨ Free</span>
-            <span className="hbadge">🔒 Secure</span>
-            <span className="hbadge">🌸 Premium</span>
+            <span className="hbadge">✨ Free</span><span className="hbadge">🔒 Secure</span><span className="hbadge">🌸 Premium</span>
           </div>
         </div>
       </header>
@@ -545,15 +494,10 @@ export default function App() {
       {tab==="image" && (
         <main className="main">
           <div className="card prompt-card">
-            <label className="label">
-              ✍️ Apni Imagination Describe Karo
-              <span className="label-hint">Kuch bhi likho — AI usse amazing image mein badlega</span>
-            </label>
+            <label className="label">✍️ Apni Imagination Describe Karo<span className="label-hint">Kuch bhi likho — AI usse amazing image mein badlega</span></label>
             <textarea className="textarea"
               placeholder="Kuch bhi describe karo... jaise: 'ek sher aur lion ki dosti sunset mein' ya 'Taj Mahal at night with aurora borealis'"
-              value={imgPrompt}
-              onChange={e => { setImgPrompt(e.target.value); setImgError(""); }}
-              rows={4} maxLength={2000}
+              value={imgPrompt} onChange={e => { setImgPrompt(e.target.value); setImgError(""); }} rows={4} maxLength={2000}
             />
             <div className="prompt-footer">
               <span className="char-count">{imgPrompt.length}/2000</span>
@@ -563,7 +507,7 @@ export default function App() {
                 <span className="toggle-label">🧠 Imagination Enhancer {useEnhancer?"ON":"OFF"}</span>
               </label>
             </div>
-            {useEnhancer && <div className="enhancer-info">💡 Simple description → Ultra-detailed AI prompt — results 10x better!</div>}
+            {useEnhancer && <div className="enhancer-info">💡 Tumhari simple description AI se ultra-detailed prompt mein badlti hai — results 10x better!</div>}
           </div>
 
           <div className="card">
@@ -571,8 +515,7 @@ export default function App() {
             <div className="model-grid">
               {IMG_MODELS.map(m => (
                 <button key={m.id} className={`model-btn ${imgModel===m.id?"active":""}`} onClick={() => setImgModel(m.id)}>
-                  <span className="model-name">{m.name}</span>
-                  <span className="model-tag">{m.tag}</span>
+                  <span className="model-name">{m.name}</span><span className="model-tag">{m.tag}</span>
                 </button>
               ))}
             </div>
@@ -603,26 +546,17 @@ export default function App() {
             <div>
               <label className="label">🔢 Kitni Images: <strong className="count-num">{imgCount}</strong></label>
               <input type="range" min={1} max={4} value={imgCount} onChange={e => setImgCount(+e.target.value)} className="slider"/>
-              <div className="slider-labels">
-                {[1,2,3,4].map(n=><span key={n} className={imgCount>=n?"active":""}>{n}</span>)}
-              </div>
+              <div className="slider-labels">{[1,2,3,4].map(n=><span key={n} className={imgCount>=n?"active":""}>{n}</span>)}</div>
             </div>
           </div>
 
           {imgError && <div className="error-box">⚠️ {imgError}</div>}
 
           <button className="gen-btn" onClick={generateImage} disabled={imgLoading}>
-            {imgLoading ? (
-              <span className="btn-inner">
-                <span className="spinner"/>
-                {enhancing?"🧠 AI prompt enhance kar raha hai...":`🌸 Image ${genIndex}/${imgCount} ban rahi hai...`}
-              </span>
-            ) : (
-              <span className="btn-inner">
-                🌸 Generate {imgCount>1?`${imgCount} Images`:"Image"}
-                {useEnhancer && <span className="btn-badge">+ AI Enhance</span>}
-              </span>
-            )}
+            {imgLoading
+              ? <span className="btn-inner"><span className="spinner"/>{enhancing?"🧠 AI prompt enhance kar raha hai...":`🌸 Image ${genIndex}/${imgCount} ban rahi hai...`}</span>
+              : <span className="btn-inner">🌸 Generate {imgCount>1?`${imgCount} Images`:"Image"}{useEnhancer&&<span className="btn-badge">+ AI Enhance</span>}</span>
+            }
           </button>
 
           {images.length > 0 && (
@@ -666,10 +600,8 @@ export default function App() {
             <div className="chat-input-wrap">
               <textarea className="chat-input"
                 placeholder={`${currentLang?.name} mein pucho... 🌸`}
-                value={chatInput}
-                onChange={e => setChatInput(e.target.value)}
-                onKeyDown={handleKey}
-                rows={2} maxLength={2000}
+                value={chatInput} onChange={e => setChatInput(e.target.value)}
+                onKeyDown={handleKey} rows={2} maxLength={2000}
               />
               <button className="send-btn" onClick={sendChat} disabled={chatLoading||!chatInput.trim()}>
                 {chatLoading ? <span className="spinner"/> : <span>➤</span>}
