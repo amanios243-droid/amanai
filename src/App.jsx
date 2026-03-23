@@ -108,7 +108,7 @@ const SIZES = [
 // GROQ API KEY — Free, fast, reliable
 // Get yours free at: console.groq.com
 // ═══════════════════════════════════════════════════════════
-const GROQ_API_KEY = "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";
+const GROQ_API_KEY = import.meta.env.VITE_GROQ_KEY || "";
 
 async function chatAPI(messages, langCode) {
   const system = LANG_SYSTEM[langCode] || LANG_SYSTEM["hinglish"];
