@@ -2,164 +2,196 @@ import { useState, useRef, useEffect, useCallback, memo } from "react";
 import "./App.css";
 
 // ═══════════════════════════════════════════════════════════
-// SECURITY UTILITIES
+// SECURITY
 // ═══════════════════════════════════════════════════════════
 const sanitize = (str) => {
   if (typeof str !== "string") return "";
-  return str
-    .replace(/[<>]/g, "") // strip HTML tags
-    .replace(/javascript:/gi, "")
-    .replace(/on\w+=/gi, "")
-    .trim()
-    .slice(0, 2000); // max length
+  return str.replace(/[<>]/g,"").replace(/javascript:/gi,"").replace(/on\w+=/gi,"").trim().slice(0,2000);
 };
-
 const rateLimit = (() => {
   const map = {};
-  return (key, maxCalls, windowMs) => {
+  return (key, max, ms) => {
     const now = Date.now();
     if (!map[key]) map[key] = [];
-    map[key] = map[key].filter(t => now - t < windowMs);
-    if (map[key].length >= maxCalls) return false;
-    map[key].push(now);
-    return true;
+    map[key] = map[key].filter(t => now - t < ms);
+    if (map[key].length >= max) return false;
+    map[key].push(now); return true;
   };
 })();
 
 // ═══════════════════════════════════════════════════════════
-// INDIA LANGUAGES
+// LANGUAGES
 // ═══════════════════════════════════════════════════════════
 const LANGUAGES = [
-  { code: "hi", name: "हिंदी", label: "Hindi" },
-  { code: "en", name: "English", label: "English" },
-  { code: "hinglish", name: "Hinglish", label: "Hinglish" },
-  { code: "bn", name: "বাংলা", label: "Bengali" },
-  { code: "te", name: "తెలుగు", label: "Telugu" },
-  { code: "mr", name: "मराठी", label: "Marathi" },
-  { code: "ta", name: "தமிழ்", label: "Tamil" },
-  { code: "gu", name: "ગુજરાતી", label: "Gujarati" },
-  { code: "kn", name: "ಕನ್ನಡ", label: "Kannada" },
-  { code: "ml", name: "മലയാളം", label: "Malayalam" },
-  { code: "pa", name: "ਪੰਜਾਬੀ", label: "Punjabi" },
-  { code: "or", name: "ଓଡ଼ିଆ", label: "Odia" },
-  { code: "as", name: "অসমীয়া", label: "Assamese" },
-  { code: "ur", name: "اردو", label: "Urdu" },
-  { code: "sa", name: "संस्कृत", label: "Sanskrit" },
-  { code: "mai", name: "मैथिली", label: "Maithili" },
-  { code: "bho", name: "भोजपुरी", label: "Bhojpuri" },
-  { code: "raj", name: "राजस्थानी", label: "Rajasthani" },
-  { code: "ks", name: "कश्मीरी", label: "Kashmiri" },
-  { code: "ne", name: "नेपाली", label: "Nepali" },
-  { code: "sd", name: "سنڌي", label: "Sindhi" },
-  { code: "kok", name: "कोंकणी", label: "Konkani" },
+  { code:"hi", name:"हिंदी", label:"Hindi" },
+  { code:"en", name:"English", label:"English" },
+  { code:"hinglish", name:"Hinglish", label:"Hinglish" },
+  { code:"bn", name:"বাংলা", label:"Bengali" },
+  { code:"te", name:"తెలుగు", label:"Telugu" },
+  { code:"mr", name:"मराठी", label:"Marathi" },
+  { code:"ta", name:"தமிழ்", label:"Tamil" },
+  { code:"gu", name:"ગુજરાતી", label:"Gujarati" },
+  { code:"kn", name:"ಕನ್ನಡ", label:"Kannada" },
+  { code:"ml", name:"മലയാളം", label:"Malayalam" },
+  { code:"pa", name:"ਪੰਜਾਬੀ", label:"Punjabi" },
+  { code:"or", name:"ଓଡ଼ିଆ", label:"Odia" },
+  { code:"as", name:"অসমীয়া", label:"Assamese" },
+  { code:"ur", name:"اردو", label:"Urdu" },
+  { code:"sa", name:"संस्कृत", label:"Sanskrit" },
+  { code:"mai", name:"मैथिली", label:"Maithili" },
+  { code:"bho", name:"भोजपुरी", label:"Bhojpuri" },
+  { code:"raj", name:"राजस्थानी", label:"Rajasthani" },
+  { code:"ks", name:"کشمیری", label:"Kashmiri" },
+  { code:"ne", name:"नेपाली", label:"Nepali" },
+  { code:"sd", name:"سنڌي", label:"Sindhi" },
+  { code:"kok", name:"कोंकणी", label:"Konkani" },
 ];
 
 const LANG_SYSTEM = {
-  hi: "तुम AmanAI हो — एक बेहतरीन, दोस्ताना और मददगार AI। हमेशा हिंदी में जवाब दो। छोटे और साफ जवाब दो।",
-  en: "You are AmanAI — a smart, friendly and helpful AI assistant. Always respond in English. Be concise and clear.",
-  hinglish: "Tu AmanAI hai — ek smart aur helpful AI. Hamesha Hinglish mein baat kar (Hindi + English mix). Short aur clear jawab de.",
-  bn: "তুমি AmanAI — একটি স্মার্ট, বন্ধুত্বপূর্ণ AI। সবসময় বাংলায় উত্তর দাও।",
-  te: "మీరు AmanAI — తెలివైన, స్నేహపూర్వక AI. ఎల్లప్పుడూ తెలుగులో సమాధానం ఇవ్వండి.",
-  mr: "तू AmanAI आहेस — एक हुशार, मैत्रीपूर्ण AI. नेहमी मराठीत उत्तर दे.",
-  ta: "நீங்கள் AmanAI — ஒரு புத்திசாலி, நட்பான AI. எப்போதும் தமிழில் பதில் சொல்லுங்கள்.",
-  gu: "તમે AmanAI છો — એક સ્માર્ટ, મૈત્રીપૂર્ણ AI. હંમેશા ગુજરાતીમાં જવાબ આપો.",
-  kn: "ನೀವು AmanAI — ಒಂದು ಬುದ್ಧಿವಂತ, ಸ್ನೇಹಪರ AI. ಯಾವಾಗಲೂ ಕನ್ನಡದಲ್ಲಿ ಉತ್ತರಿಸಿ.",
-  ml: "നിങ്ങൾ AmanAI — ഒരു സ്മാർട്ട്, സൗഹൃദ AI. എപ്പോഴും മലയാളത്തിൽ ഉത്തരം നൽകൂ.",
-  pa: "ਤੁਸੀਂ AmanAI ਹੋ — ਇੱਕ ਸਮਝਦਾਰ, ਦੋਸਤਾਨਾ AI. ਹਮੇਸ਼ਾ ਪੰਜਾਬੀ ਵਿੱਚ ਜਵਾਬ ਦਿਓ।",
-  or: "ତୁମେ AmanAI — ଏକ ସ୍ମାର୍ଟ AI। ସବୁବେଳେ ଓଡ଼ିଆରେ ଉତ୍ତର ଦିଅ।",
-  as: "তুমি AmanAI — এটি স্মাৰ্ট AI। সদায় অসমীয়াত উত্তৰ দিয়া।",
-  ur: "آپ AmanAI ہیں — ایک ذہین، دوستانہ AI۔ ہمیشہ اردو میں جواب دیں۔",
-  sa: "भवान् AmanAI अस्ति — एकः बुद्धिमान् AI। सदा संस्कृते उत्तरं ददातु।",
-  mai: "अहाँ AmanAI छी — एक चतुर AI। हमेशा मैथिली में जवाब दी।",
-  bho: "रउरा AmanAI बानी — एक चतुर AI। हमेशा भोजपुरी में जवाब दीं।",
-  raj: "थे AmanAI हो — एक चतुर AI। हमेशा राजस्थानी में जवाब दो।",
-  ks: "تۄہِ AmanAI چھِو — اکھ ذہین AI۔ ہمیشہ کشمیری میں جواب دیو۔",
-  ne: "तपाईं AmanAI हुनुहुन्छ — एक स्मार्ट AI। सधैं नेपालीमा जवाफ दिनुस्।",
-  sd: "توهان AmanAI آهيو — هڪ ذهين AI. هميشه سنڌيءَ ۾ جواب ڏيو.",
-  kok: "तुम AmanAI आसाय — एक हुशार AI। सदांच कोंकणींत जाप दी.",
+  hi:"तुम AmanAI हो — एक बेहतरीन, दोस्ताना और मददगार AI। हमेशा हिंदी में जवाब दो। छोटे और साफ जवाब दो।",
+  en:"You are AmanAI — a smart, friendly and helpful AI assistant. Always respond in English. Be concise and clear.",
+  hinglish:"Tu AmanAI hai — ek smart aur helpful AI. Hamesha Hinglish mein baat kar (Hindi + English mix). Short aur clear jawab de.",
+  bn:"তুমি AmanAI — স্মার্ট AI। সবসময় বাংলায় উত্তর দাও।",
+  te:"మీరు AmanAI — తెలివైన AI. తెలుగులో సమాధానం ఇవ్వండి.",
+  mr:"तू AmanAI आहेस — हुशार AI. मराठीत उत्तर दे.",
+  ta:"நீங்கள் AmanAI — புத்திசாலி AI. தமிழில் பதில் சொல்லுங்கள்.",
+  gu:"તમે AmanAI — સ્માર્ટ AI. ગુજરાતીમાં જવાબ આપો.",
+  kn:"ನೀವು AmanAI — ಬುದ್ಧಿವಂತ AI. ಕನ್ನಡದಲ್ಲಿ ಉತ್ತರಿಸಿ.",
+  ml:"നിങ്ങൾ AmanAI — സ്മാർട്ട് AI. മലയാളത്തിൽ ഉത്തരം നൽകൂ.",
+  pa:"ਤੁਸੀਂ AmanAI — ਸਮਝਦਾਰ AI. ਪੰਜਾਬੀ ਵਿੱਚ ਜਵਾਬ ਦਿਓ।",
+  or:"ତୁମେ AmanAI — ସ୍ମାର୍ଟ AI। ଓଡ଼ିଆରେ ଉତ୍ତର ଦିଅ।",
+  as:"তুমি AmanAI — স্মাৰ্ট AI। অসমীয়াত উত্তৰ দিয়া।",
+  ur:"آپ AmanAI — ذہین AI۔ اردو میں جواب دیں۔",
+  sa:"भवान् AmanAI — बुद्धिमान् AI। संस्कृते उत्तरं ददातु।",
+  mai:"अहाँ AmanAI — चतुर AI। मैथिली में जवाब दी।",
+  bho:"रउरा AmanAI — चतुर AI। भोजपुरी में जवाब दीं।",
+  raj:"थे AmanAI — चतुर AI। राजस्थानी में जवाब दो।",
+  ks:"تۄہِ AmanAI — ذہین AI۔ کشمیری میں جواب دیو۔",
+  ne:"तपाईं AmanAI — स्मार्ट AI। नेपालीमा जवाफ दिनुस्।",
+  sd:"توهان AmanAI — ذهين AI. سنڌيءَ ۾ جواب ڏيو.",
+  kok:"तुम AmanAI — हुशार AI। कोंकणींत जाप दी.",
 };
 
 // ═══════════════════════════════════════════════════════════
 // IMAGE CONFIG
 // ═══════════════════════════════════════════════════════════
 const IMG_MODELS = [
-  { id: "flux", name: "FLUX", tag: "Best Quality", desc: "Sabse achhi quality" },
-  { id: "flux-realism", name: "Realism", tag: "Ultra HD", desc: "Bilkul real jaise" },
-  { id: "flux-anime", name: "Anime", tag: "Cartoon", desc: "Anime/manga style" },
-  { id: "flux-3d", name: "3D", tag: "3D Art", desc: "3D render style" },
-  { id: "turbo", name: "Turbo", tag: "⚡ Fast", desc: "Jaldi generate" },
+  { id:"flux", name:"FLUX", tag:"Best" },
+  { id:"flux-realism", name:"Realism", tag:"Ultra HD" },
+  { id:"flux-anime", name:"Anime", tag:"Cartoon" },
+  { id:"flux-3d", name:"3D", tag:"3D Art" },
+  { id:"turbo", name:"Turbo", tag:"⚡ Fast" },
 ];
-
 const STYLES = [
-  { label: "Auto (Best)", value: "", emoji: "✨" },
-  { label: "Photorealistic", value: "photorealistic, ultra detailed, 8k resolution, sharp focus, professional photography", emoji: "📷" },
-  { label: "Cinematic", value: "cinematic shot, movie still, dramatic lighting, film grain, anamorphic lens", emoji: "🎬" },
-  { label: "Anime", value: "anime art style, vibrant colors, manga illustration, studio ghibli inspired", emoji: "🎌" },
-  { label: "Oil Painting", value: "oil painting, textured canvas, masterpiece, fine art, museum quality", emoji: "🖼️" },
-  { label: "Watercolor", value: "watercolor painting, soft edges, flowing colors, artistic", emoji: "🎨" },
-  { label: "Cyberpunk", value: "cyberpunk, neon lights, futuristic city, rain, blade runner aesthetic", emoji: "🌆" },
-  { label: "Fantasy", value: "fantasy art, magical, ethereal glow, epic, mythical, detailed illustration", emoji: "🧙" },
-  { label: "Sketch", value: "pencil sketch, hand drawn, detailed linework, artistic drawing", emoji: "✏️" },
-  { label: "Digital Art", value: "digital art, concept art, artstation, highly detailed, trending", emoji: "💻" },
-  { label: "Vintage", value: "vintage photography, retro, film noir, aged, nostalgic", emoji: "📸" },
-  { label: "Minimalist", value: "minimalist, clean, simple, modern design, white background", emoji: "◻️" },
+  { label:"Auto", value:"", emoji:"✨" },
+  { label:"Photorealistic", value:"photorealistic, ultra detailed, 8k, sharp focus", emoji:"📷" },
+  { label:"Cinematic", value:"cinematic shot, dramatic lighting, film grain", emoji:"🎬" },
+  { label:"Anime", value:"anime style, vibrant colors, manga art", emoji:"🎌" },
+  { label:"Oil Painting", value:"oil painting, textured canvas, masterpiece", emoji:"🖼️" },
+  { label:"Watercolor", value:"watercolor painting, soft edges, artistic", emoji:"🎨" },
+  { label:"Cyberpunk", value:"cyberpunk, neon lights, futuristic, blade runner", emoji:"🌆" },
+  { label:"Fantasy", value:"fantasy art, magical, ethereal glow, epic", emoji:"🧙" },
+  { label:"Sketch", value:"pencil sketch, hand drawn, detailed linework", emoji:"✏️" },
+  { label:"Digital Art", value:"digital art, concept art, artstation, detailed", emoji:"💻" },
+  { label:"Vintage", value:"vintage photography, retro, film noir, nostalgic", emoji:"📸" },
+  { label:"Minimalist", value:"minimalist, clean, simple, modern design", emoji:"◻️" },
 ];
-
 const SIZES = [
-  { label: "Square 1:1", width: 1024, height: 1024, icon: "⬛" },
-  { label: "Portrait 2:3", width: 832, height: 1216, icon: "📱" },
-  { label: "Landscape 3:2", width: 1216, height: 832, icon: "🖥️" },
-  { label: "Wide 16:9", width: 1344, height: 768, icon: "📺" },
-  { label: "Ultra Wide", width: 1536, height: 640, icon: "🎞️" },
+  { label:"Square 1:1", width:1024, height:1024, icon:"⬛" },
+  { label:"Portrait 2:3", width:832, height:1216, icon:"📱" },
+  { label:"Landscape 3:2", width:1216, height:832, icon:"🖥️" },
+  { label:"Wide 16:9", width:1344, height:768, icon:"📺" },
+  { label:"Ultra Wide", width:1536, height:640, icon:"🎞️" },
 ];
 
-const QUALITY_ENHANCERS = "masterpiece, best quality, highly detailed, professional, award winning";
+// ═══════════════════════════════════════════════════════════
+// GROQ API KEY — Free, fast, reliable
+// Get yours free at: console.groq.com
+// ═══════════════════════════════════════════════════════════
+const GROQ_API_KEY = "gsk_APNI_KEY_YAHAN_DAALO";
 
-// ═══════════════════════════════════════════════════════════
-// PROMPT ENHANCER — imagination power
-// ═══════════════════════════════════════════════════════════
-async function enhancePrompt(rawPrompt, style) {
-  const styleHint = style ? `Style: ${style}.` : "";
-  const body = {
-    model: "openai",
-    messages: [
-      {
-        role: "system",
-        content: `You are an expert AI image prompt engineer. Convert any simple description into a detailed, vivid, professional image generation prompt in English. ${styleHint} Add lighting, atmosphere, composition details. Keep it under 200 words. Return ONLY the enhanced prompt, nothing else.`
-      },
-      { role: "user", content: rawPrompt }
-    ]
-  };
-  const res = await fetch("https://text.pollinations.ai/openai", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-  });
-  if (!res.ok) return rawPrompt;
-  const data = await res.json();
-  return data.choices?.[0]?.message?.content || rawPrompt;
-}
-
-// ═══════════════════════════════════════════════════════════
-// CHAT API
-// ═══════════════════════════════════════════════════════════
 async function chatAPI(messages, langCode) {
   const system = LANG_SYSTEM[langCode] || LANG_SYSTEM["hinglish"];
-  const body = {
-    model: "openai",
-    messages: [
-      { role: "system", content: system + " Apna naam AmanAI hai. Helpful, friendly aur concise raho." },
-      ...messages.slice(-20).map(m => ({ role: m.role, content: m.content }))
-    ]
-  };
-  const res = await fetch("https://text.pollinations.ai/openai", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-  });
-  if (!res.ok) throw new Error(`API Error ${res.status}`);
-  const data = await res.json();
-  return data.choices?.[0]?.message?.content || "Kuch problem aa gayi. Dobara try karo!";
+
+  // ── Method 1: Groq (fastest, most reliable) ──
+  if (GROQ_API_KEY !== "gsk_APNI_KEY_YAHAN_DAALO") {
+    try {
+      const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${GROQ_API_KEY}`,
+        },
+        body: JSON.stringify({
+          model: "llama3-8b-8192",
+          messages: [
+            { role:"system", content: system + " Apna naam AmanAI hai." },
+            ...messages.slice(-20).map(m => ({ role:m.role, content:m.content }))
+          ],
+          max_tokens: 1024,
+          temperature: 0.7,
+        }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        const reply = data.choices?.[0]?.message?.content;
+        if (reply) return reply;
+      }
+    } catch(_) {}
+  }
+
+  // ── Method 2: Pollinations (no key needed, backup) ──
+  try {
+    const lastMsg = messages[messages.length-1]?.content || "";
+    const encodedMsg = encodeURIComponent(lastMsg.slice(0,500));
+    const sysEncoded = encodeURIComponent(system.slice(0,200));
+    const res = await fetch(
+      `https://text.pollinations.ai/${encodedMsg}?model=openai&system=${sysEncoded}&seed=${Math.floor(Math.random()*9999)}`,
+      { method: "GET" }
+    );
+    if (res.ok) {
+      const text = await res.text();
+      if (text && text.length > 5 && !text.includes("<!DOCTYPE")) return text.trim();
+    }
+  } catch(_) {}
+
+  // ── Method 3: Pollinations POST ──
+  try {
+    const res = await fetch("https://text.pollinations.ai/", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        messages: [
+          { role:"system", content: system },
+          ...messages.slice(-10).map(m => ({ role:m.role, content:m.content }))
+        ],
+        model: "openai",
+        seed: Math.floor(Math.random()*9999),
+      }),
+    });
+    if (res.ok) {
+      const text = await res.text();
+      if (text && text.length > 5 && !text.includes("<!DOCTYPE")) return text.trim();
+    }
+  } catch(_) {}
+
+  return "⚠️ Chat thodi der ke liye unavailable hai. Kuch minutes baad dobara try karo, ya Groq API key set karo for guaranteed service! 🙏";
+}
+
+// Prompt enhancer
+async function enhancePrompt(rawPrompt, style) {
+  try {
+    const encodedMsg = encodeURIComponent(`Convert this to a detailed image prompt: ${rawPrompt}. ${style ? "Style: "+style : ""}. Add lighting, mood, composition details. Return ONLY the enhanced prompt in English, max 150 words.`);
+    const res = await fetch(
+      `https://text.pollinations.ai/${encodedMsg}?model=openai&seed=${Math.floor(Math.random()*9999)}`,
+      { method: "GET" }
+    );
+    if (res.ok) {
+      const text = await res.text();
+      if (text && text.length > 10 && !text.includes("<!DOCTYPE")) return text.trim();
+    }
+  } catch(_) {}
+  return rawPrompt;
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -174,9 +206,8 @@ const ImageCard = memo(({ img, index, onDownload }) => {
     <div className="img-card loading-card">
       <div className="img-shimmer">
         <div className="shimmer-orb"/>
-        <p className="shimmer-text">Imagination power se ban rahi hai... ✨</p>
-        <div className="shimmer-bar"/>
-        <div className="shimmer-bar short"/>
+        <p className="shimmer-text">Imagination se ban rahi hai ✨</p>
+        <div className="shimmer-bar"/><div className="shimmer-bar short"/>
       </div>
     </div>
   );
@@ -188,11 +219,11 @@ const ImageCard = memo(({ img, index, onDownload }) => {
   return (
     <div className="img-card done-card">
       <div className="img-wrapper">
-        <img src={img.url} alt={`AmanAI generated ${index+1}`} className="gen-img" loading="lazy"/>
+        <img src={img.url} alt={`AmanAI ${index+1}`} className="gen-img" loading="lazy"/>
         <div className="img-overlay">
-          <button className="overlay-btn" onClick={() => onDownload(img, index)}>⬇ Download</button>
+          <button className="overlay-btn" onClick={() => onDownload(img,index)}>⬇ Download</button>
           <button className="overlay-btn" onClick={() => window.open(img.url,"_blank")}>🔍 Full Size</button>
-          <button className="overlay-btn" onClick={() => navigator.clipboard.writeText(img.enhancedPrompt || img.prompt)}>📋 Prompt</button>
+          <button className="overlay-btn" onClick={() => navigator.clipboard.writeText(img.enhancedPrompt||img.prompt)}>📋 Prompt</button>
         </div>
       </div>
       {img.enhancedPrompt && (
@@ -212,8 +243,9 @@ export default function App() {
   const [tab, setTab] = useState("image");
   const [lang, setLang] = useState("hinglish");
   const [showLangMenu, setShowLangMenu] = useState(false);
+  const [groqKey, setGroqKey] = useState(localStorage.getItem("amanai_groq_key") || "");
+  const [showKeyInput, setShowKeyInput] = useState(false);
 
-  // Image
   const [imgPrompt, setImgPrompt] = useState("");
   const [imgModel, setImgModel] = useState("flux");
   const [imgStyle, setImgStyle] = useState("");
@@ -226,154 +258,121 @@ export default function App() {
   const [genIndex, setGenIndex] = useState(null);
   const [enhancing, setEnhancing] = useState(false);
 
-  // Chat
   const [messages, setMessages] = useState([
-    { role: "assistant", content: "Salam! Main AmanAI hoon 🌸 Tumhara personal AI — image bhi banata hoon, baat bhi karta hoon! Kuch bhi pucho, kisi bhi Indian language mein! 😊" }
+    { role:"assistant", content:"Salam! Main AmanAI hoon 🌸 Tumhara personal AI — image bhi banata hoon, baat bhi karta hoon! Kuch bhi pucho, kisi bhi Indian language mein! 😊" }
   ]);
   const [chatInput, setChatInput] = useState("");
   const [chatLoading, setChatLoading] = useState(false);
   const bottomRef = useRef(null);
   const langMenuRef = useRef(null);
 
+  // Update GROQ key in module scope when changed
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+    if (groqKey) {
+      localStorage.setItem("amanai_groq_key", groqKey);
+      // Override the constant
+      window.__AMANAI_GROQ_KEY__ = groqKey;
+    }
+  }, [groqKey]);
+
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior:"smooth" });
   }, [messages, chatLoading]);
 
-  // Close lang menu on outside click
   useEffect(() => {
     const handler = (e) => {
-      if (langMenuRef.current && !langMenuRef.current.contains(e.target)) {
-        setShowLangMenu(false);
-      }
+      if (langMenuRef.current && !langMenuRef.current.contains(e.target)) setShowLangMenu(false);
     };
     document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
   }, []);
 
-  // ── Image Generate ──
   const generateImage = useCallback(async () => {
     const cleanPrompt = sanitize(imgPrompt);
     if (!cleanPrompt) return setImgError("Prompt likho pehle!");
+    if (!rateLimit("img",10,60000)) return setImgError("Thoda ruko! 60 sec baad try karo.");
 
-    // Rate limit: 10 images per minute
-    if (!rateLimit("imgGen", 10, 60000)) {
-      return setImgError("Thoda ruko! 1 minute mein zyada images generate ho gayi. 60 second baad try karo.");
-    }
-
-    setImgLoading(true);
-    setImgError("");
-
-    const newImgs = Array(imgCount).fill(null).map((_, i) => ({
-      id: Date.now() + i, loading: true, url: null, prompt: cleanPrompt,
-    }));
+    setImgLoading(true); setImgError("");
+    const newImgs = Array(imgCount).fill(null).map((_,i) => ({ id:Date.now()+i, loading:true, url:null, prompt:cleanPrompt }));
     setImages(prev => [...newImgs, ...prev]);
 
     for (let i = 0; i < imgCount; i++) {
-      setGenIndex(i + 1);
+      setGenIndex(i+1);
       try {
         let finalPrompt = cleanPrompt;
-
-        // Imagination enhancer
         if (useEnhancer) {
           setEnhancing(true);
-          try {
-            const enhanced = await enhancePrompt(cleanPrompt, imgStyle);
-            finalPrompt = sanitize(enhanced);
-          } catch { /* use original */ }
+          finalPrompt = sanitize(await enhancePrompt(cleanPrompt, imgStyle));
           setEnhancing(false);
         }
-
-        // Add style + quality
         const styleStr = imgStyle ? `, ${imgStyle}` : "";
-        const fullPrompt = `${finalPrompt}${styleStr}, ${QUALITY_ENHANCERS}`;
-
+        const fullPrompt = `${finalPrompt}${styleStr}, masterpiece, best quality, highly detailed`;
         const seed = Math.floor(Math.random() * 9999999);
-        const url = `https://image.pollinations.ai/prompt/${encodeURIComponent(fullPrompt)}?model=${imgModel}&width=${imgSize.width}&height=${imgSize.height}&seed=${seed}&nologo=true&enhance=false&nofeed=true`;
+        const url = `https://image.pollinations.ai/prompt/${encodeURIComponent(fullPrompt)}?model=${imgModel}&width=${imgSize.width}&height=${imgSize.height}&seed=${seed}&nologo=true&nofeed=true`;
 
         await new Promise((resolve, reject) => {
           const tester = new window.Image();
-          const timeout = setTimeout(() => reject(new Error("Timeout — dobara try karo")), 60000);
+          const timeout = setTimeout(() => reject(new Error("Timeout — dobara try karo")), 90000);
           tester.onload = () => { clearTimeout(timeout); resolve(); };
-          tester.onerror = () => { clearTimeout(timeout); reject(new Error("Image load nahi hui. Prompt change karke try karo.")); };
+          tester.onerror = () => { clearTimeout(timeout); reject(new Error("Server busy. 30 sec baad try karo.")); };
           tester.src = url;
         });
 
         setImages(prev => prev.map(x =>
-          x.id === newImgs[i].id
-            ? { ...x, loading: false, url, prompt: cleanPrompt, enhancedPrompt: finalPrompt }
-            : x
+          x.id === newImgs[i].id ? { ...x, loading:false, url, prompt:cleanPrompt, enhancedPrompt:finalPrompt } : x
         ));
-      } catch (err) {
-        setImages(prev => prev.map(x =>
-          x.id === newImgs[i].id ? { ...x, loading: false, error: err.message } : x
-        ));
-        setImgError(`Image ${i+1} fail hui: ${err.message}`);
+      } catch(err) {
+        setEnhancing(false);
+        setImages(prev => prev.map(x => x.id === newImgs[i].id ? { ...x, loading:false, error:err.message } : x));
+        setImgError(`Image ${i+1} fail: ${err.message}`);
       }
     }
-    setImgLoading(false);
-    setGenIndex(null);
-    setEnhancing(false);
+    setImgLoading(false); setGenIndex(null); setEnhancing(false);
   }, [imgPrompt, imgStyle, imgModel, imgSize, imgCount, useEnhancer]);
 
   const downloadImg = useCallback((img, i) => {
     const a = document.createElement("a");
-    a.href = img.url;
-    a.target = "_blank";
+    a.href = img.url; a.target = "_blank";
     a.download = `AmanAI-${i+1}-${Date.now()}.png`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
   }, []);
 
-  // ── Chat ──
   const sendChat = useCallback(async () => {
     const text = sanitize(chatInput);
     if (!text || chatLoading) return;
-
-    // Rate limit: 20 messages per minute
-    if (!rateLimit("chat", 20, 60000)) {
-      return setMessages(prev => [...prev, {
-        role: "assistant",
-        content: "⚠️ Thoda ruko! Bahut saare messages aa gaye. 1 minute baad try karo. 🙏"
-      }]);
+    if (!rateLimit("chat",20,60000)) {
+      return setMessages(prev => [...prev, { role:"assistant", content:"⚠️ Thoda ruko! 1 minute baad try karo. 🙏" }]);
     }
-
-    const userMsg = { role: "user", content: text };
+    const activeKey = groqKey || window.__AMANAI_GROQ_KEY__;
+    const userMsg = { role:"user", content:text };
     const newMsgs = [...messages, userMsg];
-    setMessages(newMsgs);
-    setChatInput("");
-    setChatLoading(true);
-
+    setMessages(newMsgs); setChatInput(""); setChatLoading(true);
     try {
-      const reply = await chatAPI(newMsgs, lang);
-      setMessages(prev => [...prev, { role: "assistant", content: sanitize(reply) }]);
-    } catch (err) {
-      setMessages(prev => [...prev, {
-        role: "assistant",
-        content: `⚠️ Error: ${err.message}. Internet check karo aur dobara try karo!`
-      }]);
+      // Pass groq key to chatAPI
+      const reply = await chatAPIWithKey(newMsgs, lang, activeKey);
+      setMessages(prev => [...prev, { role:"assistant", content:sanitize(reply) }]);
+    } catch(err) {
+      setMessages(prev => [...prev, { role:"assistant", content:`⚠️ ${err.message}` }]);
     }
     setChatLoading(false);
-  }, [chatInput, chatLoading, messages, lang]);
+  }, [chatInput, chatLoading, messages, lang, groqKey]);
 
   const handleKey = (e) => {
-    if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendChat(); }
+    if (e.key==="Enter" && !e.shiftKey) { e.preventDefault(); sendChat(); }
   };
 
   const currentLang = LANGUAGES.find(l => l.code === lang);
 
   return (
     <div className="app">
-      {/* BG */}
       <div className="bg-mesh" aria-hidden="true">
         <div className="blob b1"/><div className="blob b2"/><div className="blob b3"/>
         <div className="grid-overlay"/>
       </div>
 
-      {/* HEADER */}
       <header className="header">
         <div className="brand">
-          <div className="brand-logo" aria-label="AmanAI Logo">
+          <div className="brand-logo">
             <span className="logo-letter">A</span>
             <div className="logo-ring"/>
           </div>
@@ -382,27 +381,20 @@ export default function App() {
             <p className="brand-tagline">India's Personal AI · Free & Unlimited</p>
           </div>
         </div>
-
         <div className="header-right">
-          {/* Language Selector */}
           <div className="lang-selector" ref={langMenuRef}>
-            <button className="lang-btn" onClick={() => setShowLangMenu(v => !v)} aria-label="Select Language">
-              <span className="lang-flag">🌐</span>
+            <button className="lang-btn" onClick={() => setShowLangMenu(v=>!v)}>
+              <span>🌐</span>
               <span className="lang-current">{currentLang?.name}</span>
-              <span className="lang-arrow">{showLangMenu ? "▲" : "▼"}</span>
+              <span className="lang-arrow">{showLangMenu?"▲":"▼"}</span>
             </button>
             {showLangMenu && (
-              <div className="lang-dropdown" role="listbox">
-                <div className="lang-dropdown-title">🇮🇳 Indian Languages</div>
+              <div className="lang-dropdown">
+                <div className="lang-dropdown-title">🇮🇳 22 Indian Languages</div>
                 <div className="lang-grid">
                   {LANGUAGES.map(l => (
-                    <button
-                      key={l.code}
-                      className={`lang-option ${lang === l.code ? "active" : ""}`}
-                      onClick={() => { setLang(l.code); setShowLangMenu(false); }}
-                      role="option"
-                      aria-selected={lang === l.code}
-                    >
+                    <button key={l.code} className={`lang-option ${lang===l.code?"active":""}`}
+                      onClick={() => { setLang(l.code); setShowLangMenu(false); }}>
                       <span className="lang-native">{l.name}</span>
                       <span className="lang-label">{l.label}</span>
                     </button>
@@ -411,90 +403,53 @@ export default function App() {
               </div>
             )}
           </div>
-
           <div className="header-badges">
             <span className="hbadge">✨ Free</span>
             <span className="hbadge">🔒 Secure</span>
-            <span className="hbadge">🌸 Premium</span>
           </div>
         </div>
       </header>
 
-      {/* TABS */}
-      <nav className="tabs" role="tablist">
-        <button
-          className={`tab ${tab==="image"?"active":""}`}
-          onClick={() => setTab("image")}
-          role="tab" aria-selected={tab==="image"}
-        >
-          <span className="tab-icon">🎨</span>
-          <span>Image Generator</span>
+      <nav className="tabs">
+        <button className={`tab ${tab==="image"?"active":""}`} onClick={() => setTab("image")}>
+          <span className="tab-icon">🎨</span><span>Image Generator</span>
         </button>
-        <button
-          className={`tab ${tab==="chat"?"active":""}`}
-          onClick={() => setTab("chat")}
-          role="tab" aria-selected={tab==="chat"}
-        >
-          <span className="tab-icon">💬</span>
-          <span>AI Chat</span>
+        <button className={`tab ${tab==="chat"?"active":""}`} onClick={() => setTab("chat")}>
+          <span className="tab-icon">💬</span><span>AI Chat</span>
           {messages.length > 1 && <span className="tab-badge">{messages.filter(m=>m.role==="assistant").length}</span>}
         </button>
       </nav>
 
-      {/* ══ IMAGE TAB ══ */}
-      {tab === "image" && (
-        <main className="main" role="main">
-
-          {/* Prompt */}
+      {tab==="image" && (
+        <main className="main">
           <div className="card prompt-card">
-            <label className="label" htmlFor="img-prompt">
+            <label className="label">
               ✍️ Apni Imagination Describe Karo
-              <span className="label-hint">Kuch bhi likho — humara AI usse amazing image mein badlega</span>
+              <span className="label-hint">Kuch bhi likho — AI usse amazing image mein badlega</span>
             </label>
-            <div className="prompt-wrap">
-              <textarea
-                id="img-prompt"
-                className="textarea"
-                placeholder="Kuch bhi describe karo... jaise: 'ek sher aur sher ki dosti pahadon par suryast ke samay' ya 'a dragon flying over Taj Mahal at night with aurora borealis'"
-                value={imgPrompt}
-                onChange={e => { setImgPrompt(e.target.value); setImgError(""); }}
-                rows={4}
-                maxLength={2000}
-                aria-describedby="prompt-help"
-              />
-              <div className="prompt-footer">
-                <span className="char-count" id="prompt-help">{imgPrompt.length}/2000</span>
-                <label className="enhancer-toggle">
-                  <input
-                    type="checkbox"
-                    checked={useEnhancer}
-                    onChange={e => setUseEnhancer(e.target.checked)}
-                  />
-                  <span className="toggle-track">
-                    <span className="toggle-thumb"/>
-                  </span>
-                  <span className="toggle-label">🧠 Imagination Enhancer {useEnhancer ? "ON" : "OFF"}</span>
-                </label>
-              </div>
+            <textarea
+              className="textarea"
+              placeholder="Kuch bhi describe karo... jaise: 'ek sher aur lion ki dosti pahadon par sunset mein' ya 'Taj Mahal at night with aurora borealis'"
+              value={imgPrompt}
+              onChange={e => { setImgPrompt(e.target.value); setImgError(""); }}
+              rows={4} maxLength={2000}
+            />
+            <div className="prompt-footer">
+              <span className="char-count">{imgPrompt.length}/2000</span>
+              <label className="enhancer-toggle">
+                <input type="checkbox" checked={useEnhancer} onChange={e => setUseEnhancer(e.target.checked)}/>
+                <span className="toggle-track"><span className="toggle-thumb"/></span>
+                <span className="toggle-label">🧠 Imagination Enhancer {useEnhancer?"ON":"OFF"}</span>
+              </label>
             </div>
-            {useEnhancer && (
-              <div className="enhancer-info">
-                💡 Imagination Enhancer tumhari simple description ko ultra-detailed professional prompt mein badlega — ekdum amazing results!
-              </div>
-            )}
+            {useEnhancer && <div className="enhancer-info">💡 Tumhari simple description AI se ultra-detailed prompt mein badlti hai — results 10x better!</div>}
           </div>
 
-          {/* Model */}
           <div className="card">
             <label className="label">🤖 AI Model</label>
             <div className="model-grid">
               {IMG_MODELS.map(m => (
-                <button
-                  key={m.id}
-                  className={`model-btn ${imgModel===m.id?"active":""}`}
-                  onClick={() => setImgModel(m.id)}
-                  title={m.desc}
-                >
+                <button key={m.id} className={`model-btn ${imgModel===m.id?"active":""}`} onClick={() => setImgModel(m.id)}>
                   <span className="model-name">{m.name}</span>
                   <span className="model-tag">{m.tag}</span>
                 </button>
@@ -502,69 +457,44 @@ export default function App() {
             </div>
           </div>
 
-          {/* Style */}
           <div className="card">
             <label className="label">🎨 Art Style</label>
             <div className="style-grid">
               {STYLES.map(s => (
-                <button
-                  key={s.label}
-                  className={`style-btn ${imgStyle===s.value?"active":""}`}
-                  onClick={() => setImgStyle(s.value)}
-                >
-                  <span>{s.emoji}</span>
-                  <span>{s.label}</span>
+                <button key={s.label} className={`style-btn ${imgStyle===s.value?"active":""}`} onClick={() => setImgStyle(s.value)}>
+                  <span>{s.emoji}</span><span>{s.label}</span>
                 </button>
               ))}
             </div>
           </div>
 
-          {/* Size & Count */}
           <div className="card two-col">
             <div>
               <label className="label">📐 Image Size</label>
               <div className="size-btns">
                 {SIZES.map(s => (
-                  <button
-                    key={s.label}
-                    className={`size-btn ${JSON.stringify(imgSize)===JSON.stringify(s)?"active":""}`}
-                    onClick={() => setImgSize(s)}
-                  >
-                    <span>{s.icon}</span>
-                    <span>{s.label}</span>
+                  <button key={s.label} className={`size-btn ${JSON.stringify(imgSize)===JSON.stringify(s)?"active":""}`} onClick={() => setImgSize(s)}>
+                    <span>{s.icon}</span><span>{s.label}</span>
                   </button>
                 ))}
               </div>
             </div>
             <div>
               <label className="label">🔢 Kitni Images: <strong className="count-num">{imgCount}</strong></label>
-              <input
-                type="range" min={1} max={4} value={imgCount}
-                onChange={e => setImgCount(+e.target.value)}
-                className="slider" aria-label="Image count"
-              />
+              <input type="range" min={1} max={4} value={imgCount} onChange={e => setImgCount(+e.target.value)} className="slider"/>
               <div className="slider-labels">
-                {[1,2,3,4].map(n=>(
-                  <span key={n} className={imgCount>=n?"active":""}>{n}</span>
-                ))}
+                {[1,2,3,4].map(n=><span key={n} className={imgCount>=n?"active":""}>{n}</span>)}
               </div>
             </div>
           </div>
 
-          {imgError && (
-            <div className="error-box" role="alert">⚠️ {imgError}</div>
-          )}
+          {imgError && <div className="error-box">⚠️ {imgError}</div>}
 
-          <button
-            className="gen-btn"
-            onClick={generateImage}
-            disabled={imgLoading}
-            aria-label="Generate Image"
-          >
+          <button className="gen-btn" onClick={generateImage} disabled={imgLoading}>
             {imgLoading ? (
               <span className="btn-inner">
                 <span className="spinner"/>
-                {enhancing ? "🧠 Imagination enhance ho rahi hai..." : `🌸 Image ${genIndex}/${imgCount} ban rahi hai...`}
+                {enhancing?"🧠 Prompt enhance ho rahi hai...":`🌸 Image ${genIndex}/${imgCount} ban rahi hai...`}
               </span>
             ) : (
               <span className="btn-inner">
@@ -574,46 +504,64 @@ export default function App() {
             )}
           </button>
 
-          {/* Gallery */}
           {images.length > 0 && (
-            <section className="gallery-section" aria-label="Generated Images">
+            <section className="gallery-section">
               <div className="gallery-hdr">
                 <h2>🖼️ Generated Images <span className="gallery-count">({images.length})</span></h2>
                 <button className="clear-btn" onClick={() => setImages([])}>🗑️ Clear All</button>
               </div>
               <div className="gallery">
-                {images.map((img,i) => (
-                  <ImageCard key={img.id} img={img} index={i} onDownload={downloadImg}/>
-                ))}
+                {images.map((img,i) => <ImageCard key={img.id} img={img} index={i} onDownload={downloadImg}/>)}
               </div>
             </section>
           )}
         </main>
       )}
 
-      {/* ══ CHAT TAB ══ */}
-      {tab === "chat" && (
-        <section className="chat-wrap" aria-label="AI Chat">
+      {tab==="chat" && (
+        <section className="chat-wrap">
           <div className="chat-lang-bar">
-            <span>🌐 Baat kar rahe ho:</span>
+            <span>🌐 Language:</span>
             <strong>{currentLang?.name} ({currentLang?.label})</strong>
-            <button className="change-lang-btn" onClick={() => { setTab("image"); setTimeout(()=>setShowLangMenu(true),100); }}>
-              Change Language
-            </button>
+            <button className="change-lang-btn" onClick={() => setShowLangMenu(true)}>Change ▼</button>
           </div>
 
+          {/* Groq Key Setup */}
+          <div className="groq-banner">
+            <div className="groq-left">
+              <span>⚡</span>
+              <div>
+                <strong>Free Groq API Key lagao</strong>
+                <span className="groq-sub"> — Fast & Guaranteed chat ke liye</span>
+              </div>
+            </div>
+            <button className="groq-toggle-btn" onClick={() => setShowKeyInput(v=>!v)}>
+              {groqKey ? "✅ Set" : "Setup →"}
+            </button>
+          </div>
+          {showKeyInput && (
+            <div className="groq-setup">
+              <p>1. <a href="https://console.groq.com" target="_blank" rel="noreferrer">console.groq.com</a> pe <strong>free account</strong> banao</p>
+              <p>2. "API Keys" → "Create API Key" → Copy karo</p>
+              <div className="groq-input-row">
+                <input
+                  type="password"
+                  className="groq-input"
+                  placeholder="gsk_xxxxxxxxxxxxxxxxxx"
+                  value={groqKey}
+                  onChange={e => setGroqKey(e.target.value)}
+                />
+                <button className="groq-save-btn" onClick={() => setShowKeyInput(false)}>Save ✓</button>
+              </div>
+            </div>
+          )}
+
           <div className="chat-messages" role="log" aria-live="polite">
-            {messages.map((m, i) => (
+            {messages.map((m,i) => (
               <div key={i} className={`msg ${m.role}`}>
-                {m.role==="assistant" && (
-                  <div className="msg-avatar" aria-label="AmanAI">A</div>
-                )}
-                <div className="msg-bubble">
-                  <div className="msg-content">{m.content}</div>
-                </div>
-                {m.role==="user" && (
-                  <div className="msg-avatar user-av" aria-label="You">👤</div>
-                )}
+                {m.role==="assistant" && <div className="msg-avatar">A</div>}
+                <div className="msg-bubble"><div className="msg-content">{m.content}</div></div>
+                {m.role==="user" && <div className="msg-avatar user-av">👤</div>}
               </div>
             ))}
             {chatLoading && (
@@ -633,38 +581,92 @@ export default function App() {
                 value={chatInput}
                 onChange={e => setChatInput(e.target.value)}
                 onKeyDown={handleKey}
-                rows={2}
-                maxLength={2000}
-                aria-label="Chat message input"
+                rows={2} maxLength={2000}
               />
-              <button
-                className="send-btn"
-                onClick={sendChat}
-                disabled={chatLoading || !chatInput.trim()}
-                aria-label="Send message"
-              >
+              <button className="send-btn" onClick={sendChat} disabled={chatLoading||!chatInput.trim()}>
                 {chatLoading ? <span className="spinner"/> : <span>➤</span>}
               </button>
             </div>
-            <p className="chat-hint">Enter = Send · Shift+Enter = New line · Max 2000 chars</p>
+            <p className="chat-hint">Enter = Send · Shift+Enter = New line</p>
           </div>
         </section>
       )}
 
-      {/* FOOTER */}
       <footer className="footer">
         <div className="footer-inner">
-          <span>🌸 AmanAI</span>
-          <span>·</span>
-          <span>Powered by Pollinations AI</span>
-          <span>·</span>
-          <span>22 Indian Languages</span>
-          <span>·</span>
-          <span>100% Free & Secure</span>
-          <span>·</span>
-          <span>🔒 No Data Stored</span>
+          <span>🌸 AmanAI</span><span>·</span>
+          <span>Powered by Pollinations + Groq</span><span>·</span>
+          <span>22 Indian Languages</span><span>·</span>
+          <span>🔒 Secure</span>
         </div>
       </footer>
     </div>
   );
+}
+
+// ── chatAPI with dynamic key ──
+async function chatAPIWithKey(messages, langCode, groqKey) {
+  const system = LANG_SYSTEM[langCode] || LANG_SYSTEM["hinglish"];
+
+  // Method 1: Groq (if key available)
+  if (groqKey && groqKey.length > 10) {
+    try {
+      const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${groqKey}`,
+        },
+        body: JSON.stringify({
+          model: "llama3-8b-8192",
+          messages: [
+            { role:"system", content: system + " Apna naam AmanAI hai. Helpful aur concise raho." },
+            ...messages.slice(-20).map(m => ({ role:m.role, content:m.content }))
+          ],
+          max_tokens: 1024,
+          temperature: 0.7,
+        }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        const reply = data.choices?.[0]?.message?.content;
+        if (reply) return reply;
+      }
+    } catch(_) {}
+  }
+
+  // Method 2: Pollinations GET
+  try {
+    const lastMsg = messages[messages.length-1]?.content || "";
+    const res = await fetch(
+      `https://text.pollinations.ai/${encodeURIComponent(lastMsg.slice(0,500))}?model=openai&system=${encodeURIComponent(system.slice(0,200))}&seed=${Math.floor(Math.random()*9999)}`,
+      { method:"GET" }
+    );
+    if (res.ok) {
+      const text = await res.text();
+      if (text && text.length > 5 && !text.includes("<!DOCTYPE")) return text.trim();
+    }
+  } catch(_) {}
+
+  // Method 3: Pollinations POST
+  try {
+    const res = await fetch("https://text.pollinations.ai/", {
+      method: "POST",
+      headers: { "Content-Type":"application/json" },
+      body: JSON.stringify({
+        messages: [
+          { role:"system", content:system },
+          ...messages.slice(-10).map(m => ({ role:m.role, content:m.content }))
+        ],
+        model:"openai",
+        seed: Math.floor(Math.random()*9999),
+      }),
+    });
+    if (res.ok) {
+      const text = await res.text();
+      if (text && text.length > 5 && !text.includes("<!DOCTYPE")) return text.trim();
+    }
+  } catch(_) {}
+
+  return "Chat abhi busy hai. Groq key lagao ya thodi der baad try karo! 🙏";
 }
